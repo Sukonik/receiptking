@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { Button, Checkbox, ConfigProvider, DatePicker, Input, message, Progress, theme as antTheme } from "antd";
 import {
   CameraOutlined, CheckOutlined, CloseOutlined, DeleteOutlined, FileExcelOutlined,
-  FilePdfOutlined, FileTextOutlined, FolderOpenOutlined, LockOutlined, PlusOutlined,
+  FileDoneOutlined, FileImageOutlined, FilePdfOutlined, FileTextOutlined, FolderOpenOutlined, LockOutlined, PlusOutlined,
   PrinterOutlined, SafetyCertificateOutlined, SettingOutlined, WarningOutlined
 } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -102,7 +102,7 @@ function loadAppearance() {
 const today = dayjs();
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const blankRow = () => ({ id: uid(), budgetCode: "", amount: "", reason: "", source: "Manual entry", ocr: false, note: "", fileKey: "" });
-const hasContent = row => Boolean(row.budgetCode || row.amount || row.reason);
+const hasContent = row => Boolean(row.budgetCode || row.amount || row.reason || row.fileKey);
 const monthLabel = key => dayjs(`${key}-01`).format("MMMM YYYY");
 const money = value => value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -205,11 +205,11 @@ function drawToCanvas(source, width, height, { rotate = 0, filter = "" } = {}) {
   return canvas;
 }
 
-function makePreview(source, width, height) {
-  const scale = Math.min(1, 1400 / Math.max(width, height));
+function makeImage(source, width, height, maxEdge, quality) {
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
   const w = Math.round(width * scale);
   const h = Math.round(height * scale);
-  return { url: drawToCanvas(source, w, h).toDataURL("image/jpeg", 0.8), w, h };
+  return { url: drawToCanvas(source, w, h).toDataURL("image/jpeg", quality), w, h };
 }
 
 async function pdfPageText(page) {
@@ -247,7 +247,8 @@ async function prepareReceipt(file) {
     pdf.destroy?.();
     return {
       canvas, text: /\d+\.\d{2}/.test(text) && text.length > 30 ? text : "",
-      preview: makePreview(canvas, canvas.width, canvas.height), width: canvas.width, height: canvas.height
+      full: makeImage(canvas, canvas.width, canvas.height, 2200, 0.9), thumb: makeImage(canvas, canvas.width, canvas.height, 220, 0.72),
+      width: canvas.width, height: canvas.height
     };
   }
 
@@ -263,9 +264,101 @@ async function prepareReceipt(file) {
   const longest = Math.max(width, height);
   const scale = longest > 2400 ? 2400 / longest : longest < 1400 ? Math.min(2, 1400 / longest) : 1;
   const canvas = drawToCanvas(bitmap, Math.round(width * scale), Math.round(height * scale), { filter: "grayscale(1) contrast(1.2)" });
-  const preview = makePreview(bitmap, width, height);
+  const full = makeImage(bitmap, width, height, 2200, 0.9);
+  const thumb = makeImage(bitmap, width, height, 220, 0.72);
   bitmap.close?.();
-  return { canvas, text: "", preview, width, height };
+  return { canvas, text: "", full, thumb, width, height };
+}
+
+/* ---------- Receipt Inbox storage (IndexedDB, this browser only) ---------- */
+const DB_NAME = "receiptking-inbox";
+const DB_STORE = "receipts";
+let dbPromise;
+function openDb() {
+  if (!dbPromise) {
+    dbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error("IndexedDB unavailable")); return; }
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(DB_STORE);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    dbPromise.catch(() => {});
+  }
+  return dbPromise;
+}
+async function dbRun(mode, run) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const request = run(db.transaction(DB_STORE, mode).objectStore(DB_STORE));
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+const dbPut = (id, value) => dbRun("readwrite", store => store.put(value, id)).catch(() => {});
+const dbDelete = id => dbRun("readwrite", store => store.delete(id)).catch(() => {});
+const dbGet = id => dbRun("readonly", store => store.get(id)).catch(() => undefined);
+const dbKeys = () => dbRun("readonly", store => store.getAllKeys()).catch(() => []);
+
+/* ---------- Receipt file output: PNG conversion and a small store-only ZIP writer ---------- */
+const safeName = text => String(text).replace(/\.[^.]+$/, "").replace(/[^a-z0-9._ -]+/gi, "-").replace(/\s+/g, "-").slice(0, 60) || "receipt";
+const canvasToBlob = (canvas, type, quality) => new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Could not create the image.")), type, quality));
+function loadImageElement(url) {
+  return new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => reject(new Error("Could not read the receipt image.")); image.src = url; });
+}
+async function receiptPngBlob(receipt) {
+  if (receipt.file && receipt.type === "image/png") return receipt.file;
+  let source = null;
+  let width = 0;
+  let height = 0;
+  if (receipt.file && receipt.kind === "image") {
+    try { source = await decodeImage(receipt.file); width = source.naturalWidth || source.width; height = source.naturalHeight || source.height; } catch (_) { source = null; }
+  }
+  if (!source) { source = await loadImageElement(receipt.full.url); width = source.naturalWidth; height = source.naturalHeight; }
+  const scale = Math.min(1, 4096 / Math.max(width, height));
+  const blob = await canvasToBlob(drawToCanvas(source, Math.round(width * scale), Math.round(height * scale)), "image/png");
+  source.close?.();
+  return blob;
+}
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) { let c = n; for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; table[n] = c >>> 0; }
+  return table;
+})();
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i += 1) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function makeZip(files) {
+  const encoder = new TextEncoder();
+  const now = new Date();
+  const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  files.forEach(file => {
+    const name = encoder.encode(file.name);
+    const crc = crc32(file.data);
+    const size = file.data.length;
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
+    local.setUint16(10, time, true); local.setUint16(12, date, true); local.setUint32(14, crc, true);
+    local.setUint32(18, size, true); local.setUint32(22, size, true); local.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(local.buffer), name, file.data);
+    const entry = new DataView(new ArrayBuffer(46));
+    entry.setUint32(0, 0x02014b50, true); entry.setUint16(4, 20, true); entry.setUint16(6, 20, true); entry.setUint16(8, 0x0800, true);
+    entry.setUint16(12, time, true); entry.setUint16(14, date, true); entry.setUint32(16, crc, true);
+    entry.setUint32(20, size, true); entry.setUint32(24, size, true); entry.setUint16(28, name.length, true); entry.setUint32(42, offset, true);
+    central.push(new Uint8Array(entry.buffer), name);
+    offset += 30 + name.length + size;
+  });
+  const directorySize = central.reduce((sum, part) => sum + part.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, directorySize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
 }
 
 function makeCancelToken() {
@@ -321,11 +414,12 @@ function App() {
   const draft = useMemo(loadDraft, []);
   const [form, setForm] = useState(draft.form);
   const [rows, setRows] = useState(draft.rows);
-  const [previews, setPreviews] = useState({});
+  const [receipts, setReceipts] = useState({});
+  const [deselected, setDeselected] = useState(() => new Set());
+  const [printJob, setPrintJob] = useState({ kind: "", n: 0 });
   const [scan, setScan] = useState({ active: false, progress: 0, file: "", status: "", index: 0, total: 0 });
   const [showErrors, setShowErrors] = useState(false);
   const [busy, setBusy] = useState("");
-  const [attachImages, setAttachImages] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [viewer, setViewer] = useState(null);
   const viewerRef = useRef(null);
@@ -393,6 +487,22 @@ function App() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: STORAGE_SCHEMA, form, rows })); } catch (_) {}
   }, [form, rows]);
 
+  // Restore saved receipt images for the lines in this draft, and drop images whose lines are gone.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const ids = new Set(draft.rows.map(row => row.id));
+      const restored = {};
+      for (const id of ids) {
+        const record = await dbGet(id);
+        if (record) restored[id] = record;
+      }
+      (await dbKeys()).forEach(key => { if (!ids.has(key)) dbDelete(key); });
+      if (alive && Object.keys(restored).length) setReceipts(current => ({ ...restored, ...current }));
+    })();
+    return () => { alive = false; };
+  }, []);
+
   const filled = useMemo(() => rows.filter(hasContent), [rows]);
   const total = useMemo(() => filled.reduce((sum, row) => sum + normalizeMoney(row.amount), 0), [filled]);
 
@@ -416,14 +526,16 @@ function App() {
     return { rowErrors, formErrors, count, empty };
   }, [filled, form]);
   const show = showErrors ? validation : { rowErrors: {}, formErrors: {}, count: 0, empty: false };
-  const attachable = filled.filter(row => previews[row.id]);
+  const inbox = useMemo(() => filled.map((row, index) => ({ row, line: index + 1, receipt: receipts[row.id] })).filter(item => item.receipt), [filled, receipts]);
+  const chosen = inbox.filter(item => !deselected.has(item.row.id));
 
   function updateForm(field, value) { setForm(current => ({ ...current, [field]: value })); }
   function updateRow(id, field, value) { setRows(current => current.map(row => row.id === id ? { ...row, [field]: value } : row)); }
   function addRow() { setRows(current => [...current, blankRow()]); }
   function removeRow(id) {
     setRows(current => current.length === 1 ? [blankRow()] : current.filter(item => item.id !== id));
-    setPreviews(current => { const next = { ...current }; delete next[id]; return next; });
+    setReceipts(current => { const next = { ...current }; delete next[id]; return next; });
+    dbDelete(id);
   }
 
   /* ---------- Import queue ---------- */
@@ -465,7 +577,9 @@ function App() {
           if (isPdf(file)) setStatus({ status: "Opening PDF" });
           const prepared = await token.guard(prepareReceipt(file));
           if (Math.min(prepared.width, prepared.height) < LOW_RES_EDGE) notes.push("Low resolution. Double-check the amount.");
-          setPreviews(current => ({ ...current, [row.id]: prepared.preview }));
+          const record = { name: file.name, type: file.type, kind: isPdf(file) ? "pdf" : "image", file, full: prepared.full, thumb: prepared.thumb };
+          setReceipts(current => ({ ...current, [row.id]: record }));
+          dbPut(row.id, record);
 
           let text = prepared.text;
           if (!text) {
@@ -615,116 +729,234 @@ function App() {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
   const stamp = () => dayjs().format("YYYY-MM-DD");
+  const FOREST = [22, 63, 54];
+  const GREY = [109, 120, 115];
+
+  function addFooters(doc) {
+    const pages = doc.getNumberOfPages();
+    for (let page = 1; page <= pages; page += 1) {
+      doc.setPage(page);
+      const w = doc.internal.pageSize.getWidth();
+      const h = doc.internal.pageSize.getHeight();
+      doc.setDrawColor(223, 229, 223);
+      doc.setLineWidth(0.5);
+      doc.line(40, h - 42, w - 40, h - 42);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...GREY);
+      doc.text("ReceiptKing. OCR assists with data entry; staff remain responsible for reviewing purchasing records.", 40, h - 28);
+      doc.text(`Page ${page} of ${pages}`, w - 40, h - 28, { align: "right" });
+    }
+  }
+
+  function drawReportPage(doc, data) {
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const M = 40;
+    const reportTotal = data.reduce((sum, row) => sum + row.Amount, 0);
+
+    doc.setTextColor(...FOREST);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("City Credit Card Expense Form", M, 54);
+    doc.setFontSize(9);
+    doc.setTextColor(...GREY);
+    doc.text("Prepared with ReceiptKing", W - M, 54, { align: "right" });
+    doc.setDrawColor(...FOREST);
+    doc.setLineWidth(1.5);
+    doc.line(M, 66, W - M, 66);
+
+    [["DEPARTMENT", form.department, M], ["MONTH", monthLabel(form.monthKey), 300], ["TODAY'S DATE", form.reportDate, 430]].forEach(([label, value, x]) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...GREY);
+      doc.text(label, x, 88);
+      doc.setFontSize(11);
+      doc.setTextColor(25, 53, 46);
+      doc.text(String(value || ""), x, 104);
+    });
+
+    doc.autoTable({
+      startY: 124,
+      margin: { left: M, right: M, bottom: 64 },
+      head: [["#", "Budget Code", "Amount", "Reason for Purchase", "Source Receipt"]],
+      body: data.map(row => [row.Line, row["Budget Code"], `$${money(row.Amount)}`, row["Reason for Purchase"], row["Source Receipt"]]),
+      theme: "plain",
+      showHead: "everyPage",
+      headStyles: { fillColor: FOREST, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8.5 },
+      bodyStyles: { textColor: [25, 53, 46], valign: "top" },
+      alternateRowStyles: { fillColor: [246, 247, 242] },
+      styles: { font: "helvetica", fontSize: 9, cellPadding: { top: 6, bottom: 6, left: 6, right: 6 }, lineColor: [223, 229, 223], lineWidth: { bottom: 0.5 }, overflow: "linebreak" },
+      columnStyles: { 0: { cellWidth: 24, halign: "center" }, 1: { cellWidth: 92 }, 2: { cellWidth: 72, halign: "right" }, 3: { cellWidth: "auto" }, 4: { cellWidth: 118 } },
+      didParseCell: hook => { if (hook.section === "head" && hook.column.index === 2) hook.cell.styles.halign = "right"; },
+      rowPageBreak: "avoid"
+    });
+
+    let y = doc.lastAutoTable.finalY + 16;
+    if (y > H - 230) { doc.addPage(); y = 64; }
+    doc.setFillColor(246, 247, 242);
+    doc.setDrawColor(223, 229, 223);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(W - M - 210, y, 210, 34, 4, 4, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...GREY);
+    doc.text("REPORT TOTAL", W - M - 198, y + 21);
+    doc.setFontSize(14);
+    doc.setTextColor(...FOREST);
+    doc.text(`$${money(reportTotal)}`, W - M - 12, y + 22, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...GREY);
+    doc.text(`${data.length} ${data.length === 1 ? "line" : "lines"}`, M, y + 21);
+
+    y += 92;
+    doc.setDrawColor(25, 53, 46);
+    doc.setLineWidth(0.8);
+    doc.line(M, y, M + 300, y);
+    doc.line(M + 340, y, W - M, y);
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(13);
+    doc.setTextColor(25, 53, 46);
+    doc.text(form.signature || "", M + 4, y - 6);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.text(form.signatureDate || "", M + 344, y - 6);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...GREY);
+    doc.text("SIGNATURE / PRINTED NAME", M, y + 13);
+    doc.text("DATE", M + 340, y + 13);
+  }
+
+  function addReceiptPage(doc, item, position, count) {
+    const image = item.receipt.full;
+    doc.addPage("letter", image.w > image.h * 1.15 ? "landscape" : "portrait");
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const M = 40;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...FOREST);
+    doc.text(`Receipt ${position} of ${count}  ·  Line ${item.line}`, M, 46);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...GREY);
+    const detail = [item.receipt.name, item.row.amount ? `$${money(normalizeMoney(item.row.amount))}` : "", item.row.reason].filter(Boolean).join("  ·  ");
+    doc.text(doc.splitTextToSize(detail, W - M * 2).slice(0, 2), M, 62);
+    const boxW = W - M * 2;
+    const boxH = H - 84 - 56;
+    const ratio = Math.min(boxW / image.w, boxH / image.h);
+    const w = image.w * ratio;
+    const h = image.h * ratio;
+    doc.setDrawColor(223, 229, 223);
+    doc.rect((W - w) / 2 - 0.5, 84 - 0.5, w + 1, h + 1);
+    doc.addImage(image.url, "JPEG", (W - w) / 2, 84, w, h, undefined, "FAST");
+  }
+
+  async function runTask(label, task) {
+    const key = "export-loading";
+    setBusy(label);
+    try {
+      await task(key);
+      message.destroy(key);
+    } catch (error) {
+      console.error(error);
+      message.destroy(key);
+      message.error(error.message || "The file could not be created. Please try again.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function startPrint(kind) { setPrintJob({ kind, n: Date.now() }); }
 
   async function runExport(kind) {
     if (busy) return;
-    if (kind !== "print" && !checkBeforeExport()) return;
-    if (kind === "print") { window.print(); return; }
-    setBusy(kind);
-    const key = "export-loading";
-    try {
+    if (kind === "print") { if (validation.empty) { message.warning("Add at least one purchase before printing."); return; } startPrint("report"); return; }
+    if (!checkBeforeExport()) return;
+    await runTask(kind, async key => {
       const data = buildData();
       if (kind === "csv") {
         const headers = Object.keys(data[0]);
         const csv = [headers, ...data.map(Object.values)].map(row => row.map(escapeCsv).join(",")).join("\r\n");
-        download(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }), `ReceiptKing-${stamp()}.csv`);
+        download(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }), `ReceiptKing-Report-${stamp()}.csv`);
       } else if (kind === "xlsx") {
         if (!window.XLSX) message.loading({ content: "Loading Excel tools...", key, duration: 0 });
         await loadXlsx();
         const book = XLSX.utils.book_new();
         const sheet = XLSX.utils.json_to_sheet(data);
         sheet["!cols"] = [6, 22, 17, 14, 18, 12, 42, 24, 22, 16].map(wch => ({ wch }));
+        data.forEach((_, i) => { const cell = sheet[XLSX.utils.encode_cell({ r: i + 1, c: 5 })]; if (cell) cell.z = "$#,##0.00"; });
+        sheet["!autofilter"] = { ref: sheet["!ref"] };
         XLSX.utils.book_append_sheet(book, sheet, "Purchasing Import");
-        XLSX.writeFile(book, `ReceiptKing-${stamp()}.xlsx`);
+        const summary = XLSX.utils.aoa_to_sheet([
+          ["City Credit Card Expense Form"], [],
+          ["Department", form.department], ["Month", monthLabel(form.monthKey)], ["Today's Date", form.reportDate],
+          ["Lines", data.length], ["Report Total", total], [],
+          ["Signature / Printed Name", form.signature], ["Date", form.signatureDate]
+        ]);
+        summary["!cols"] = [{ wch: 28 }, { wch: 30 }];
+        summary.B7.z = "$#,##0.00";
+        XLSX.utils.book_append_sheet(book, summary, "Summary");
+        XLSX.writeFile(book, `ReceiptKing-Report-${stamp()}.xlsx`);
       } else {
         if (!window.jspdf?.jsPDF?.API?.autoTable) message.loading({ content: "Loading PDF tools...", key, duration: 0 });
         await loadPdfLib();
-        buildPdf(data);
+        const doc = new window.jspdf.jsPDF({ unit: "pt", format: "letter" });
+        drawReportPage(doc, data);
+        addFooters(doc);
+        doc.save(`ReceiptKing-Report-${stamp()}.pdf`);
       }
-      message.destroy(key);
-      message.success({ content: `${kind === "xlsx" ? "Excel" : kind.toUpperCase()} file created.`, duration: 2.5 });
-    } catch (error) {
-      console.error(error);
-      message.destroy(key);
-      message.error(error.message || "The export could not be created. Please try again.");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  function buildPdf(data) {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const reportTotal = data.reduce((sum, row) => sum + row.Amount, 0);
-
-    doc.setFillColor(22, 63, 54);
-    doc.rect(0, 0, pageWidth, 74, "F");
-    doc.setTextColor(215, 240, 107);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("ReceiptKing", 38, 34);
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text("CITY CREDIT CARD EXPENSE FORM", 38, 54);
-
-    doc.setTextColor(25, 53, 46);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Department: ${form.department || ""}`, 38, 100);
-    doc.text(`Month: ${monthLabel(form.monthKey)}`, 300, 100);
-    doc.text(`Today's Date: ${form.reportDate || ""}`, 525, 100);
-
-    doc.autoTable({
-      startY: 120,
-      head: [["#", "Budget Code", "Amount", "Reason for Purchase", "Source Receipt"]],
-      body: data.map(row => [row.Line, row["Budget Code"], `$${money(row.Amount)}`, row["Reason for Purchase"], row["Source Receipt"]]),
-      theme: "grid",
-      headStyles: { fillColor: [22, 63, 54], textColor: [255, 255, 255], fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [246, 247, 242] },
-      styles: { font: "helvetica", fontSize: 9, cellPadding: 6, lineColor: [223, 229, 223] },
-      columnStyles: { 0: { cellWidth: 34, halign: "center" }, 1: { cellWidth: 120 }, 2: { cellWidth: 82, halign: "right" }, 3: { cellWidth: 260 }, 4: { cellWidth: 150 } }
+      message.success({ content: `${kind === "xlsx" ? "Excel" : kind.toUpperCase()} report created.`, duration: 2.5 });
     });
-
-    let y = doc.lastAutoTable.finalY + 24;
-    if (y > pageHeight - 110) { doc.addPage(); y = 60; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text(`Report Total: $${money(reportTotal)}`, 38, y);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(`Signature / Printed Name: ${form.signature || ""}`, 38, y + 34);
-    doc.text(`Date: ${form.signatureDate || ""}`, 420, y + 34);
-    doc.setTextColor(109, 120, 115);
-    doc.setFontSize(8);
-    doc.text("OCR assists with data entry. Staff remain responsible for reviewing purchasing records.", 38, pageHeight - 26);
-
-    if (attachImages) {
-      filled.forEach((row, index) => {
-        const preview = previews[row.id];
-        if (!preview) return;
-        doc.addPage();
-        doc.setTextColor(25, 53, 46);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.text(`Line ${index + 1} receipt: ${row.source}`, 38, 40);
-        const boxW = pageWidth - 76;
-        const boxH = pageHeight - 90;
-        const ratio = Math.min(boxW / preview.w, boxH / preview.h);
-        const w = preview.w * ratio;
-        const h = preview.h * ratio;
-        doc.addImage(preview.url, "JPEG", (pageWidth - w) / 2, 56, w, h);
-      });
-    }
-    doc.save(`ReceiptKing-${stamp()}.pdf`);
   }
+
+  async function runReceipts(kind) {
+    if (busy) return;
+    if (!chosen.length) { message.warning("Select at least one receipt first."); return; }
+    if (kind === "print") { startPrint("receipts"); return; }
+    if (kind === "combined" && !checkBeforeExport()) return;
+    await runTask(`r-${kind}`, async key => {
+      if (kind === "png") {
+        message.loading({ content: "Preparing images...", key, duration: 0 });
+        const files = [];
+        for (const item of chosen) files.push({ name: `Line-${item.line}-${safeName(item.receipt.name)}.png`, blob: await receiptPngBlob(item.receipt) });
+        if (files.length === 1) download(files[0].blob, files[0].name);
+        else download(makeZip(await Promise.all(files.map(async file => ({ name: file.name, data: new Uint8Array(await file.blob.arrayBuffer()) })))), `ReceiptKing-Receipts-${stamp()}.zip`);
+        message.success({ content: files.length === 1 ? "Receipt PNG created." : `${files.length} receipt PNGs saved as a ZIP.`, duration: 2.5 });
+        return;
+      }
+      if (!window.jspdf?.jsPDF?.API?.autoTable) message.loading({ content: "Loading PDF tools...", key, duration: 0 });
+      await loadPdfLib();
+      const doc = new window.jspdf.jsPDF({ unit: "pt", format: "letter" });
+      if (kind === "combined") drawReportPage(doc, buildData());
+      chosen.forEach((item, i) => addReceiptPage(doc, item, i + 1, chosen.length));
+      if (kind !== "combined") doc.deletePage(1);
+      addFooters(doc);
+      doc.save(`ReceiptKing-${kind === "combined" ? "Report-and-Receipts" : "Receipts"}-${stamp()}.pdf`);
+      message.success({ content: kind === "combined" ? "Combined report and receipts PDF created." : "Receipts PDF created.", duration: 2.5 });
+    });
+  }
+
+  // Print renders a dedicated, clean print sheet (see styles.css), then cleans up afterwards.
+  useEffect(() => {
+    if (!printJob.kind) return undefined;
+    document.body.dataset.print = printJob.kind;
+    const finish = () => { delete document.body.dataset.print; setPrintJob({ kind: "", n: 0 }); };
+    window.addEventListener("afterprint", finish, { once: true });
+    const timer = setTimeout(() => window.print(), 250);
+    return () => { clearTimeout(timer); window.removeEventListener("afterprint", finish); };
+  }, [printJob]);
+
+  const toggleReceipt = id => setDeselected(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const toggleAll = () => setDeselected(chosen.length === inbox.length ? new Set(inbox.map(item => item.row.id)) : new Set());
 
   const exportButtons = (compact = false) => <>
-    <Button type="primary" icon={<FilePdfOutlined />} loading={busy === "pdf"} onClick={() => runExport("pdf")} aria-label="Export PDF">{compact ? "PDF" : "PDF"}</Button>
-    <Button icon={<FileExcelOutlined />} loading={busy === "xlsx"} onClick={() => runExport("xlsx")} aria-label="Export Excel">Excel</Button>
-    <Button icon={<FileTextOutlined />} loading={busy === "csv"} onClick={() => runExport("csv")} aria-label="Export CSV">CSV</Button>
-    {!compact && <Button icon={<PrinterOutlined />} onClick={() => runExport("print")}>Print</Button>}
+    <Button type="primary" icon={<FilePdfOutlined />} loading={busy === "pdf"} onClick={() => runExport("pdf")} aria-label="Download report as PDF">PDF</Button>
+    <Button icon={<FileExcelOutlined />} loading={busy === "xlsx"} onClick={() => runExport("xlsx")} aria-label="Download report as Excel">Excel</Button>
+    <Button icon={<FileTextOutlined />} loading={busy === "csv"} onClick={() => runExport("csv")} aria-label="Download report as CSV">CSV</Button>
+    {!compact && <Button icon={<PrinterOutlined />} onClick={() => runExport("print")} aria-label="Print report">Print</Button>}
   </>;
 
   const errorText = (id, text) => text ? <div className="field-error" id={id} role="alert"><WarningOutlined aria-hidden="true" /> {text}</div> : null;
@@ -817,11 +1049,6 @@ function App() {
             <span className="chip">v{APP_VERSION}</span>
           </div>
 
-          <div className="print-header">
-            <strong>City credit card expense form</strong>
-            <span>Department: {form.department}</span><span>Month: {monthLabel(form.monthKey)}</span><span>Today's Date: {form.reportDate}</span>
-          </div>
-
           <div className="workspace-grid">
             <aside className="left-rail">
               <div className="panel panel-pad">
@@ -878,7 +1105,7 @@ function App() {
                 <ul className="ledger">
                   {rows.map((row, index) => {
                     const errors = show.rowErrors[row.id] || {};
-                    const preview = previews[row.id];
+                    const receipt = receipts[row.id];
                     return <li className={`ledger-row${errors.ocr || errors.budgetCode || errors.amount || errors.reason ? " has-error" : ""}`} id={`row-${row.id}`} key={row.id}>
                       <div className="row-index"><span className="row-badge">{index + 1}</span><span className="row-word">Line {index + 1}</span></div>
                       <div className="cell cell-code">
@@ -896,7 +1123,7 @@ function App() {
                         <Input.TextArea id={`reason-${row.id}`} autoSize={{ minRows: 1, maxRows: 4 }} value={row.reason} placeholder="Business reason for purchase" status={errors.reason ? "error" : ""} aria-invalid={Boolean(errors.reason)} aria-describedby={errors.reason ? `err-reason-${row.id}` : undefined} onChange={e => updateRow(row.id, "reason", e.target.value)} />
                         {errorText(`err-reason-${row.id}`, errors.reason)}
                         <div className="source-line">
-                          {preview && <button type="button" className="thumb" aria-label={`View receipt image ${row.source}`} onClick={() => setViewer({ url: preview.url, name: row.source })}><img src={preview.url} alt="" width="36" height="46" /></button>}
+                          {receipt && <button type="button" className="thumb" aria-label={`View receipt image ${row.source}`} onClick={() => setViewer({ url: receipt.full.url, name: row.source })}><img src={receipt.thumb.url} alt="" width="36" height="46" /></button>}
                           <div className="source-text">
                             <span className="scan-meta" title={row.source}>{row.source}</span>
                             {row.ocr && <span className={`confirm-needed${errors.ocr ? " is-error" : ""}`}><span className="chip chip--warn">OCR suggestion</span><Button size="small" type="link" icon={<CheckOutlined />} onClick={() => updateRow(row.id, "ocr", false)}>Confirm values</Button></span>}
@@ -924,13 +1151,63 @@ function App() {
                     <DatePicker id="signatureDate" allowClear={false} value={dayjs(form.signatureDate)} onChange={date => date && updateForm("signatureDate", date.format("YYYY-MM-DD"))} style={{ width: "100%" }} />
                   </div>
                 </div>
-                {attachable.length > 0 && <Checkbox className="attach-toggle" checked={attachImages} onChange={e => setAttachImages(e.target.checked)}>Attach {attachable.length} receipt {attachable.length === 1 ? "image" : "images"} to the PDF</Checkbox>}
-                {showErrors && (validation.count > 0 || validation.empty) && <div className="issue-summary" role="alert"><WarningOutlined aria-hidden="true" /> {validation.empty ? "Add at least one purchase." : `${validation.count} ${validation.count === 1 ? "item needs" : "items need"} attention. Fix the highlighted fields to export.`}</div>}
-                <div className="export-row">{exportButtons()}</div>
+                {validation.empty
+                  ? <div className="export-status" role="status">Add a purchase to enable export.</div>
+                  : validation.count === 0
+                    ? <div className="export-status is-ready" role="status"><CheckOutlined aria-hidden="true" /> Ready to export. {filled.length} {filled.length === 1 ? "line" : "lines"}, total ${money(total)}.</div>
+                    : <div className={`export-status${showErrors ? " is-error" : ""}`} role={showErrors ? "alert" : "status"}><WarningOutlined aria-hidden="true" /> {validation.count} {validation.count === 1 ? "item needs" : "items need"} attention before export{showErrors ? ". Fix the highlighted fields." : "."}</div>}
+                <div className="export-group">
+                  <span className="export-label">Download report</span>
+                  <div className="export-row">{exportButtons()}</div>
+                </div>
+              </div>
+
+              <div className="panel panel-pad inbox" id="inbox">
+                <div className="panel-title">
+                  <div><h3>Receipt Inbox</h3><div className="row-count">{inbox.length === 0 ? "No receipts yet" : `${chosen.length} of ${inbox.length} selected`}</div></div>
+                  {inbox.length > 1 && <Button type="link" onClick={toggleAll}>{chosen.length === inbox.length ? "Clear" : "Select all"}</Button>}
+                </div>
+                {inbox.length === 0
+                  ? <div className="inbox-empty">Scanned and uploaded receipts collect here, so you can download or print the originals together with the report.</div>
+                  : <ul className="inbox-grid">
+                    {inbox.map(item => <li key={item.row.id} className={`inbox-card${deselected.has(item.row.id) ? " is-off" : ""}`}>
+                      <Checkbox checked={!deselected.has(item.row.id)} onChange={() => toggleReceipt(item.row.id)} aria-label={`Include receipt for line ${item.line}`} />
+                      <button type="button" className="thumb thumb--lg" aria-label={`View receipt image ${item.receipt.name}`} onClick={() => setViewer({ url: item.receipt.full.url, name: item.receipt.name })}><img src={item.receipt.thumb.url} alt="" /></button>
+                      <div className="inbox-meta"><strong>Line {item.line}{item.row.amount ? ` · $${money(normalizeMoney(item.row.amount))}` : ""}</strong><span title={item.receipt.name}>{item.receipt.name}</span></div>
+                    </li>)}
+                  </ul>}
+                <div className="export-group">
+                  <span className="export-label">Download receipts</span>
+                  <div className="export-row inbox-actions">
+                    <Button type="primary" icon={<FileDoneOutlined />} disabled={!chosen.length} loading={busy === "r-combined"} onClick={() => runReceipts("combined")} aria-label="Download combined report and receipts PDF" title="Report and selected receipts in one PDF">Combined</Button>
+                    <Button icon={<FilePdfOutlined />} disabled={!chosen.length} loading={busy === "r-pdf"} onClick={() => runReceipts("pdf")} aria-label="Download receipts PDF" title="Selected receipts in one PDF">PDF</Button>
+                    <Button icon={<FileImageOutlined />} disabled={!chosen.length} loading={busy === "r-png"} onClick={() => runReceipts("png")} aria-label="Download receipt PNG images" title="Original receipt images as PNG (a ZIP when several)">PNG</Button>
+                    <Button icon={<PrinterOutlined />} disabled={!chosen.length} onClick={() => runReceipts("print")} aria-label="Print receipts" title="Print the selected receipts">Print</Button>
+                  </div>
+                </div>
+                <p className="inbox-note">Combined adds the signed report in front of the receipts. Receipts stay in this browser only.</p>
               </div>
             </section>
           </div>
         </main>
+
+        {!validation.empty && <div className="print-sheet print-report">
+          <div className="ps-head"><h1>City Credit Card Expense Form</h1><span>Prepared with ReceiptKing</span></div>
+          <dl className="ps-meta"><div><dt>Department</dt><dd>{form.department}</dd></div><div><dt>Month</dt><dd>{monthLabel(form.monthKey)}</dd></div><div><dt>Today's Date</dt><dd>{form.reportDate}</dd></div></dl>
+          <table className="ps-table">
+            <thead><tr><th className="c">#</th><th className="code">Budget Code</th><th className="r">Amount</th><th>Reason for Purchase</th><th className="src">Source Receipt</th></tr></thead>
+            <tbody>{filled.map((row, index) => <tr key={row.id}><td className="c">{index + 1}</td><td className="code">{row.budgetCode}</td><td className="r">${money(normalizeMoney(row.amount))}</td><td>{row.reason}</td><td className="src">{row.source}</td></tr>)}</tbody>
+          </table>
+          <div className="ps-total"><span>{filled.length} {filled.length === 1 ? "line" : "lines"}</span><strong>Report total <em>${money(total)}</em></strong></div>
+          <div className="ps-sign"><div><span className="ps-line">{form.signature}</span><small>Signature / Printed Name</small></div><div><span className="ps-line">{form.signatureDate}</span><small>Date</small></div></div>
+          <p className="ps-foot">OCR assists with data entry; staff remain responsible for reviewing purchasing records.</p>
+        </div>}
+        {printJob.kind === "receipts" && <div className="print-sheet print-receipts">
+          {chosen.map((item, i) => <figure className="ps-receipt" key={item.row.id}>
+            <figcaption><strong>Receipt {i + 1} of {chosen.length} · Line {item.line}</strong><span>{[item.receipt.name, item.row.amount ? `$${money(normalizeMoney(item.row.amount))}` : "", item.row.reason].filter(Boolean).join(" · ")}</span></figcaption>
+            <img src={item.receipt.full.url} alt="" />
+          </figure>)}
+        </div>}
 
         {filled.length > 0 && <div className="export-dock" role="region" aria-label="Quick export">
           <div className="dock-total"><span>Total</span><strong>${money(total)}</strong></div>

@@ -50,7 +50,8 @@ ReceiptKing addresses those hurdles with a three-step flow: report details, rece
 | Review | OCR values are flagged "OCR suggestion" and must be confirmed before export. The receipt thumbnail and filename stay beside each line |
 | Validation | Inline errors for Budget Code, Amount, Reason, and signature before export |
 | Layout | Purchase lines become stacked cards on phones, with a sticky export bar |
-| Exports | PDF (optionally with the receipt images attached), Excel `.xlsx`, CSV, and browser print |
+| Report exports | Clean one-page-per-section PDF (header, details, table, total, signature lines, page numbers), Excel with a Summary sheet, CSV, and a purpose-built print sheet |
+| Receipt Inbox | Receipts collect below Approval and export (saved in this browser). Select any, then **Combined** (report + receipts PDF), **PDF** (receipts), **PNG** (images, ZIP when several), or **Print** |
 | Appearance | Focus-trapped dialog (bottom sheet on phones), quick light/dark toggle, no theme flash on load, reduced-motion support |
 | Performance | React, Ant Design, and icons are bundled and tree-shaken into one `app.js` (no CDN round trips at startup). Tesseract, PDF.js, SheetJS, jsPDF, and AutoTable load on first use only. Lighthouse mobile 390 px: performance 90-95, LCP 0.9 s |
 | Drafts | Browser-local draft with a schema version and migration from v1.2 drafts |

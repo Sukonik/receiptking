@@ -3,7 +3,7 @@ const {
   Button, ConfigProvider, DatePicker, Input, message, Progress, Space, Tag, Upload
 } = antd;
 const {
-  CloudUploadOutlined, DeleteOutlined, FileExcelOutlined, FileTextOutlined,
+  CloudUploadOutlined, DeleteOutlined, FileExcelOutlined, FilePdfOutlined, FileTextOutlined,
   LockOutlined, PlusOutlined, PrinterOutlined, SafetyCertificateOutlined
 } = icons;
 
@@ -183,6 +183,76 @@ function App() {
     XLSX.writeFile(book, `ReceiptKing-${dayjs().format("YYYY-MM-DD")}.xlsx`);
   }
 
+  function exportPdf() {
+    const data = validateExport();
+    if (!data) return;
+    if (!window.jspdf?.jsPDF) {
+      message.error("The PDF exporter could not load. Please refresh and try again.");
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const reportTotal = data.reduce((sum, row) => sum + normalizeMoney(row.Amount), 0);
+
+    doc.setFillColor(22, 63, 54);
+    doc.rect(0, 0, pageWidth, 74, "F");
+    doc.setTextColor(215, 240, 107);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("ReceiptKing", 38, 34);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text("CITY CREDIT CARD EXPENSE FORM", 38, 54);
+
+    doc.setTextColor(25, 53, 46);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Department: ${form.department || ""}`, 38, 100);
+    doc.text(`Month: ${form.month || ""}`, 300, 100);
+    doc.text(`Today's Date: ${form.reportDate || ""}`, 525, 100);
+
+    doc.autoTable({
+      startY: 120,
+      head: [["#", "Budget Code", "Amount", "Reason for Purchase", "Source Receipt"]],
+      body: data.map(row => [
+        row.Line,
+        row["Budget Code"],
+        `$${normalizeMoney(row.Amount).toFixed(2)}`,
+        row["Reason for Purchase"],
+        row["Source Receipt"]
+      ]),
+      theme: "grid",
+      headStyles: { fillColor: [22, 63, 54], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [246, 247, 242] },
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 6, lineColor: [223, 229, 223] },
+      columnStyles: {
+        0: { cellWidth: 34, halign: "center" },
+        1: { cellWidth: 120 },
+        2: { cellWidth: 82, halign: "right" },
+        3: { cellWidth: 260 },
+        4: { cellWidth: 150 }
+      }
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 24;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(`Report Total: $${reportTotal.toFixed(2)}`, 38, finalY);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`Signature / Printed Name: ${form.signature || ""}`, 38, finalY + 34);
+    doc.text(`Date: ${form.signatureDate || ""}`, 420, finalY + 34);
+
+    const pageHeight = doc.internal.pageSize.getHeight();
+    doc.setTextColor(109, 120, 115);
+    doc.setFontSize(8);
+    doc.text("OCR assists with data entry. Staff remain responsible for reviewing purchasing records.", 38, pageHeight - 26);
+    doc.save(`ReceiptKing-${dayjs().format("YYYY-MM-DD")}.pdf`);
+  }
+
   function download(blob, filename) {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -284,7 +354,8 @@ function App() {
                   <label><span className="form-label">Signature / Printed Name</span><Input value={form.signature} placeholder="Enter name" onChange={e => updateForm("signature", e.target.value)} /></label>
                   <label><span className="form-label">Date</span><DatePicker value={dayjs(form.signatureDate)} onChange={date => updateForm("signatureDate", date?.format("YYYY-MM-DD") || "")} style={{ width: "100%" }} /></label>
                   <div className="export-row">
-                    <Button type="primary" icon={<FileExcelOutlined />} onClick={exportXlsx}>Excel</Button>
+                    <Button type="primary" icon={<FilePdfOutlined />} onClick={exportPdf}>PDF</Button>
+                    <Button icon={<FileExcelOutlined />} onClick={exportXlsx}>Excel</Button>
                     <Button icon={<FileTextOutlined />} onClick={exportCsv}>CSV</Button>
                     <Button icon={<PrinterOutlined />} onClick={() => window.print()}>Print</Button>
                   </div>

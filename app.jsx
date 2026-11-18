@@ -510,6 +510,7 @@ function App() {
     const root = document.documentElement;
     root.dataset.theme = activeTheme.id;
     root.dataset.mode = isDark ? "dark" : "light";
+    root.dataset.icon = activeIcon.file;
     const paint = {
       "--ink": isDark ? activeTheme.darkText : activeTheme.text,
       "--forest": activeTheme.primary,
@@ -530,11 +531,6 @@ function App() {
     document.getElementById("favicon32")?.setAttribute("href", `${iconBase}favicon-32.png`);
     document.getElementById("appleIcon")?.setAttribute("href", `${iconBase}apple-touch-icon.png`);
   }, [appearance, activeTheme, activeIcon, isDark]);
-
-  useEffect(() => {
-    const icon = document.getElementById("heroIcon");
-    if (icon) icon.src = `assets/brand/jungle/${activeIcon.file}.webp`;
-  }, [activeIcon]);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: STORAGE_SCHEMA, form, rows })); } catch (_) {}
@@ -1043,7 +1039,7 @@ function App() {
         <a className="skip-link" href="#report">Skip to the report form</a>
         {createPortal(<header className="topbar">
           <div className="brand">
-            <img src={`assets/brand/jungle/${activeIcon.file}.webp`} alt={`ReceiptKing ${activeIcon.name} app icon`} width="48" height="48" />
+            <span className="brand-mark" aria-hidden="true" />
             <div className="brand-name">ReceiptKing</div>
           </div>
           <div className="topbar-actions">

@@ -17,7 +17,7 @@
         var ui = JSON.parse(localStorage.getItem("receiptking-ui") || "{}");
         if (ui.paint) for (var k in ui.paint) document.documentElement.style.setProperty(k, ui.paint[k]);
         if (ui.dark) document.documentElement.dataset.mode = "dark";
-        window.__rk = { icon: ui.icon || "hackberry" };
+        document.documentElement.dataset.icon = /^[a-z]+$/.test(ui.icon || "") ? ui.icon : "hackberry";
       } catch (e) {}
       try {
         var d = JSON.parse(localStorage.getItem("receiptking-v1") || "null");
@@ -25,33 +25,23 @@
       } catch (e) {}
     </script>
     <link rel="preload" as="image" href="assets/brand/logos/clerk-mask.webp" type="image/webp" />
+    <link rel="preload" as="image" href="assets/brand/logos/clerk-detail.webp" type="image/webp" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" media="print" onload="this.media='all'" />
   </head>
   <body>
     <div id="top-slot" class="topbar-slot">
-      <header class="topbar"><div class="brand"><img id="brandIcon" src="assets/brand/jungle/hackberry.webp" alt="" width="44" height="44" /><div class="brand-name">ReceiptKing</div></div></header>
+      <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true"></span><div class="brand-name">ReceiptKing</div></div></header>
     </div>
     <section class="hero" id="hero">
       <div class="hero-copy">
-        <img id="heroIcon" class="hero-icon" src="assets/brand/jungle/hackberry.webp" alt="" width="60" height="60" />
         <div class="eyebrow">Receipt automation, built simply</div>
         <h1>From receipt pile to <span>clean records.</span></h1>
         <p>Drop a screenshot or PDF, or photograph a paper receipt. Review the suggested amount, add the budget code, and export.</p>
         <div class="feature-row"><div class="feature-chip">Photo, screenshot, or PDF</div><div class="feature-chip">PDF, Excel, CSV</div><div class="feature-chip">No account required</div></div>
       </div>
-      <div class="hero-logo" role="img" aria-label="ReceiptKing Clerk holding a receipt"><span class="hero-logo__mark"></span></div>
+      <div class="hero-logo" role="img" aria-label="ReceiptKing Clerk holding a receipt"><span class="hero-logo__body"></span><span class="hero-logo__detail"></span></div>
     </section>
-    <script>
-      (function () {
-        var i = window.__rk && window.__rk.icon;
-        if (i && /^[a-z]+$/.test(i)) {
-          var u = "assets/brand/jungle/" + i + ".webp";
-          document.getElementById("brandIcon").src = u;
-          document.getElementById("heroIcon").src = u;
-        }
-      })();
-    </script>
     <div id="root"></div>
     <noscript>ReceiptKing requires JavaScript to process receipts and create exports.</noscript>
 

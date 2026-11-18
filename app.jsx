@@ -532,13 +532,9 @@ function App() {
   }, [appearance, activeTheme, activeIcon, isDark]);
 
   useEffect(() => {
-    const seal = document.getElementById("heroSeal");
-    if (seal) { seal.src = `assets/brand/jungle/${activeIcon.file}.webp`; seal.alt = `${activeIcon.name} jungle seal`; }
+    const icon = document.getElementById("heroIcon");
+    if (icon) icon.src = `assets/brand/jungle/${activeIcon.file}.webp`;
   }, [activeIcon]);
-
-  useEffect(() => {
-    document.getElementById("hero")?.classList.toggle("hero--compact", draft.restored);
-  }, []);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: STORAGE_SCHEMA, form, rows })); } catch (_) {}

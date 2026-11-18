@@ -24,6 +24,7 @@
         window.__rkRestored = !!(d && d.rows && d.rows.some(function (r) { return r.budgetCode || r.amount || r.reason; }));
       } catch (e) {}
     </script>
+    <link rel="preload" as="image" href="assets/brand/logos/clerk-mask.webp" type="image/webp" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" media="print" onload="this.media='all'" />
   </head>
@@ -33,24 +34,21 @@
     </div>
     <section class="hero" id="hero">
       <div class="hero-copy">
+        <img id="heroIcon" class="hero-icon" src="assets/brand/jungle/hackberry.webp" alt="" width="60" height="60" />
         <div class="eyebrow">Receipt automation, built simply</div>
         <h1>From receipt pile to <span>clean records.</span></h1>
         <p>Drop a screenshot or PDF, or photograph a paper receipt. Review the suggested amount, add the budget code, and export.</p>
         <div class="feature-row"><div class="feature-chip">Photo, screenshot, or PDF</div><div class="feature-chip">PDF, Excel, CSV</div><div class="feature-chip">No account required</div></div>
       </div>
-      <div class="monkey-card">
-        <div class="monkey-scene"><img src="assets/brand/logos/receiptking-clerk-forest-green.webp" alt="ReceiptKing Clerk holding a receipt" width="450" height="300" /></div>
-        <div class="monkey-caption"><div><strong>The little king of receipts.</strong><span>Fast intake. Human review. Clean handoff.</span></div><img id="heroSeal" class="jungle-seal" src="assets/brand/jungle/hackberry.webp" alt="HackBerry jungle seal" width="56" height="56" /></div>
-      </div>
+      <div class="hero-logo" role="img" aria-label="ReceiptKing Clerk holding a receipt"></div>
     </section>
     <script>
       (function () {
-        if (window.__rkRestored) document.getElementById("hero").classList.add("hero--compact");
         var i = window.__rk && window.__rk.icon;
         if (i && /^[a-z]+$/.test(i)) {
           var u = "assets/brand/jungle/" + i + ".webp";
           document.getElementById("brandIcon").src = u;
-          document.getElementById("heroSeal").src = u;
+          document.getElementById("heroIcon").src = u;
         }
       })();
     </script>

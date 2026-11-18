@@ -103,11 +103,15 @@ h1, h2, h3, p { margin-top: 0; }
 .feature-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .feature-chip { padding: 6px 12px; border: 1px solid rgba(255, 255, 255, .28); border-radius: 999px; background: rgba(255, 255, 255, .1); color: #fff; font-size: 13px; font-weight: 600; }
 .hero-logo {
-  position: relative; z-index: 1; justify-self: center; width: min(100%, 380px); aspect-ratio: 3 / 2;
-  background: var(--lime);
+  position: relative; z-index: 1; justify-self: center; width: min(100%, 400px); aspect-ratio: 3 / 2; overflow: hidden; border-radius: 28px;
+  background: linear-gradient(150deg, #ffffff 0%, color-mix(in srgb, var(--lime) 16%, #ffffff) 100%);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .34), 0 0 0 1px color-mix(in srgb, var(--lime) 55%, transparent);
+}
+.hero-logo::before { content: ""; position: absolute; top: -26%; right: -8%; width: 58%; aspect-ratio: 1; border-radius: 50%; background: var(--lime); opacity: .5; }
+.hero-logo__mark {
+  position: absolute; inset: 3%; background: var(--forest);
   -webkit-mask: url("assets/brand/logos/clerk-mask.webp") center / contain no-repeat;
   mask: url("assets/brand/logos/clerk-mask.webp") center / contain no-repeat;
-  filter: drop-shadow(0 14px 24px rgba(0, 0, 0, .28));
 }
 
 /* ---- Workspace ---- */
@@ -230,7 +234,7 @@ kbd { padding: 1px 6px; border: 1px solid var(--line); border-radius: 5px; backg
   .hero h1 { font-size: 31px; }
   .hero-copy .feature-row { display: none; }
   .hero-icon { width: 52px; height: 52px; margin-bottom: 14px; }
-  .hero-logo { position: absolute; top: 22px; right: var(--gutter); width: 104px; }
+  .hero-logo { position: absolute; top: 14px; right: var(--gutter); width: 96px; border-radius: 14px; }
   .field-grid, .approval-grid { grid-template-columns: 1fr; }
   .field-grid .wide { grid-column: auto; }
   .section-head { align-items: flex-start; flex-direction: column; gap: 8px; }

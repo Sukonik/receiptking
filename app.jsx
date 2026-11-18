@@ -511,6 +511,9 @@ function App() {
     root.dataset.theme = activeTheme.id;
     root.dataset.mode = isDark ? "dark" : "light";
     root.dataset.icon = activeIcon.file;
+    const logo = document.getElementById("heroLogo");
+    const logoSrc = `assets/brand/logos/clerk-${activeTheme.id}.webp`;
+    if (logo && !logo.src.endsWith(logoSrc)) logo.src = logoSrc;
     const paint = {
       "--ink": isDark ? activeTheme.darkText : activeTheme.text,
       "--forest": activeTheme.primary,
@@ -1039,7 +1042,7 @@ function App() {
         <a className="skip-link" href="#report">Skip to the report form</a>
         {createPortal(<header className="topbar">
           <div className="brand">
-            <span className="brand-mark" aria-hidden="true" />
+            <img src={`assets/brand/jungle/${activeIcon.file}.webp`} alt={`ReceiptKing ${activeIcon.name} app icon`} width="44" height="44" />
             <div className="brand-name">ReceiptKing</div>
           </div>
           <div className="topbar-actions">

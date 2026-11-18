@@ -11,7 +11,7 @@
   [![Browse Source](https://img.shields.io/badge/Browse_Source-225B4E?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Sukonik/receiptking)
   [![Deployment](https://img.shields.io/github/actions/workflow/status/Sukonik/receiptking/pages.yml?branch=main&style=for-the-badge&label=Pages)](https://github.com/Sukonik/receiptking/actions/workflows/pages.yml)
 
-  [![Version](https://img.shields.io/badge/version-1.2-D7F06B?style=flat-square&labelColor=163F36)](#site-versions)
+  [![Version](https://img.shields.io/badge/version-1.3-D7F06B?style=flat-square&labelColor=163F36)](#site-versions)
   [![License](https://img.shields.io/github/license/Sukonik/receiptking?style=flat-square&color=D7F06B&labelColor=163F36)](./LICENSE)
   [![Static App](https://img.shields.io/badge/static-browser_app-F6F7F2?style=flat-square&labelColor=163F36)](#privacy-and-data-handling)
 </div>
@@ -39,22 +39,22 @@ The project begins with a deliberately narrow municipal workflow. It follows the
 
 ReceiptKing addresses those hurdles with a three-step flow: report details, receipt intake, and reviewed export.
 
-## Version 1.2 features
+## Version 1.3 features
 
-| Area | Included in v1.2 |
+| Area | Included in v1.3 |
 | --- | --- |
-| Receipt intake | PDF, PNG, JPG, JPEG, and WebP |
-| OCR | Browser-based Tesseract.js text recognition |
-| PDF handling | PDF.js renders the first page for OCR |
-| Report fields | Department, Month, and Today's Date |
-| Purchase fields | Budget Code, Amount, and Reason for Purchase |
-| Approval fields | Signature / Printed Name and Signature Date |
-| Review | Every OCR suggestion remains editable |
-| Totals | Live report-total calculation |
-| Exports | Direct PDF, Excel `.xlsx`, CSV, and browser print |
-| Drafts | Automatic browser-local draft storage |
-| Deployment | Static GitHub Pages website |
-| Brand system | Clerk primary mark, eight live color themes, light/dark/auto mode, and six selectable Jungle icons |
+| Receipt intake | Camera scan, multi-file picker, drag-and-drop anywhere, and pasted screenshots. PDF, PNG, JPG, WebP, GIF, and BMP |
+| Mobile | "Scan with camera" opens the phone camera. Photos are rotated, resized, and enhanced before OCR |
+| OCR | Browser-based Tesseract.js, loaded on first use. Digital PDFs use their embedded text instead of OCR. A Cancel button releases the worker |
+| Safeguards | 25 MB limit, low-resolution warning, duplicate-receipt warning (override allowed), password-protected and damaged PDF messages |
+| Review | OCR values are flagged "OCR suggestion" and must be confirmed before export. The receipt thumbnail and filename stay beside each line |
+| Validation | Inline errors for Budget Code, Amount, Reason, and signature before export |
+| Layout | Purchase lines become stacked cards on phones, with a sticky export bar |
+| Exports | PDF (optionally with the receipt images attached), Excel `.xlsx`, CSV, and browser print |
+| Appearance | Focus-trapped dialog (bottom sheet on phones), quick light/dark toggle, no theme flash on load, reduced-motion support |
+| Performance | Tesseract, PDF.js, SheetJS, jsPDF, and AutoTable load on first use only |
+| Drafts | Browser-local draft with a schema version and migration from v1.2 drafts |
+| Brand system | Clerk primary mark, eight color themes, light/dark/auto mode, and six Jungle icons |
 
 ## How it works
 
@@ -172,7 +172,8 @@ The newest public version always appears first.
 
 | Version | Status | Website | Source snapshot | Published |
 | --- | --- | --- | --- | --- |
-| **v1.2** | Current | [Open v1.2](https://sukonik.github.io/receiptking/) | [`main`](https://github.com/Sukonik/receiptking/tree/main) | November 18, 2026 |
+| **v1.3** | Current | [Open v1.3](https://sukonik.github.io/receiptking/) | [`main`](https://github.com/Sukonik/receiptking/tree/main) | November 18, 2026 |
+| **v1.2** | Historical source | Replaced by v1.3 | [`989a8eb`](https://github.com/Sukonik/receiptking/commit/989a8eb6b714c60e7f55cf7ef0b3b7915d1ea071) | November 18, 2026 |
 | **v1.1** | Historical source | Replaced by v1.2 | [`bc3508b`](https://github.com/Sukonik/receiptking/commit/bc3508be5d2b35cb1ce97521fbd9f2eae78c541a) | November 18, 2026 |
 | **v1.0** | Historical source | Replaced by v1.1 | [`d128fc2`](https://github.com/Sukonik/receiptking/commit/d128fc28faa4f07cad1498cdff8d4da4e26fc7d0) | November 18, 2026 |
 

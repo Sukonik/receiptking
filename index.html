@@ -11,24 +11,59 @@
     <link rel="manifest" href="site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/antd@5.22.6/dist/reset.css" />
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <script>
+      // Replay the saved palette before first paint so themes never flash.
+      try {
+        var ui = JSON.parse(localStorage.getItem("receiptking-ui") || "{}");
+        if (ui.paint) for (var k in ui.paint) document.documentElement.style.setProperty(k, ui.paint[k]);
+        if (ui.dark) document.documentElement.dataset.mode = "dark";
+        window.__rk = { icon: ui.icon || "hackberry" };
+      } catch (e) {}
+      try {
+        var d = JSON.parse(localStorage.getItem("receiptking-v1") || "null");
+        window.__rkRestored = !!(d && d.rows && d.rows.some(function (r) { return r.budgetCode || r.amount || r.reason; }));
+      } catch (e) {}
+    </script>
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/antd@5.22.6/dist/reset.css" media="print" onload="this.media='all'" />
   </head>
   <body>
+    <div id="top-slot" class="topbar-slot">
+      <header class="topbar"><div class="brand"><img id="brandIcon" src="assets/brand/jungle/hackberry.webp" alt="" width="44" height="44" /><div class="brand-name">ReceiptKing</div></div></header>
+    </div>
+    <section class="hero" id="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">Receipt automation, built simply</div>
+        <h1>From receipt pile to <span>clean records.</span></h1>
+        <p>Drop a screenshot or PDF, or photograph a paper receipt. Review the suggested amount, add the budget code, and export.</p>
+        <div class="feature-row"><div class="feature-chip">Photo, screenshot, or PDF</div><div class="feature-chip">PDF, Excel, CSV</div><div class="feature-chip">No account required</div></div>
+      </div>
+      <div class="monkey-card">
+        <div class="monkey-scene"><img src="assets/brand/logos/receiptking-clerk-forest-green.webp" alt="ReceiptKing Clerk holding a receipt" width="450" height="300" /></div>
+        <div class="monkey-caption"><div><strong>The little king of receipts.</strong><span>Fast intake. Human review. Clean handoff.</span></div><img id="heroSeal" class="jungle-seal" src="assets/brand/jungle/hackberry.webp" alt="HackBerry jungle seal" width="56" height="56" /></div>
+      </div>
+    </section>
+    <script>
+      (function () {
+        if (window.__rkRestored) document.getElementById("hero").classList.add("hero--compact");
+        var i = window.__rk && window.__rk.icon;
+        if (i && /^[a-z]+$/.test(i)) {
+          var u = "assets/brand/jungle/" + i + ".webp";
+          document.getElementById("brandIcon").src = u;
+          document.getElementById("heroSeal").src = u;
+        }
+      })();
+    </script>
     <div id="root"></div>
     <noscript>ReceiptKing requires JavaScript to process receipts and create exports.</noscript>
 
-    <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/dayjs@1.11.13/dayjs.min.js"></script>
-    <script src="https://unpkg.com/antd@5.22.6/dist/antd.min.js"></script>
-    <script src="https://unpkg.com/@ant-design/icons@5.5.2/dist/index.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.min.mjs" type="module"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
-    <script src="app.js"></script>
+    <script defer src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script defer src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+    <script defer src="https://unpkg.com/dayjs@1.11.13/dayjs.min.js"></script>
+    <script defer src="https://unpkg.com/antd@5.22.6/dist/antd.min.js"></script>
+    <script defer src="https://unpkg.com/@ant-design/icons@5.5.2/dist/index.umd.min.js"></script>
+    <script defer src="app.js"></script>
   </body>
 </html>

@@ -20,7 +20,7 @@
 
 ## Quick links
 
-[Live website](https://sukonik.github.io/receiptking/) · [Version history](#site-versions) · [Features](#version-12-features) · [Workflow](#how-it-works) · [Emperor UI](#emperor-ui-system) · [Brand collection](#receiptking-jungle-collection) · [Run locally](#run-locally) · [Roadmap](#roadmap)
+[Live website](https://sukonik.github.io/receiptking/) · [Version history](#site-versions) · [Features](#version-12-features) · [Workflow](#how-it-works) · [Emperor UI](#emperor-ui-system) · [Brand collection](#receiptking-jungle-collection) · [Cole handoff](./HANDOFF.md) · [Run locally](#run-locally) · [Roadmap](#roadmap)
 
 ## What ReceiptKing does
 
@@ -208,6 +208,7 @@ receiptking/
 │   ├── jungle/                  # Six optimized botanical app previews
 │   └── logos/                   # Four optimized transparent Clerk variants
 ├── docs/brand/                  # Brand usage and live theme tokens
+├── HANDOFF.md                   # Cole performance and UI/UX brief
 ├── app.jsx                      # Receipt workflow and export logic
 ├── app.js                       # Precompiled production script
 ├── index.html                   # Application entry point and browser libraries

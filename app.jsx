@@ -361,7 +361,7 @@ function App() {
         <header className="topbar">
           <div className="brand">
             <img src={`assets/brand/jungle/${activeIcon.file}.webp`} alt={`ReceiptKing ${activeIcon.name} app icon`} />
-            <div><div className="brand-name">ReceiptKing</div><div className="brand-note">Emperor UI · Purchasing organized</div></div>
+            <div className="brand-name">ReceiptKing</div>
           </div>
           <div className="topbar-actions">
             <div className="privacy-pill"><LockOutlined /><span>Local browser processing</span></div>
@@ -509,7 +509,7 @@ function App() {
           </div>
 
         </main>
-        <footer className="footer">ReceiptKing v1.2 · OCR assists with data entry, but staff remain responsible for reviewing purchasing records.</footer>
+        <footer className="footer"><strong>ReceiptKing v1.2</strong><span>Emperor UI system</span><span>OCR assists with data entry. Staff remain responsible for reviewing purchasing records.</span></footer>
       </div>
     </ConfigProvider>
   );

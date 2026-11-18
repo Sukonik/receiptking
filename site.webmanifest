@@ -1,0 +1,21 @@
+{
+  "name": "ReceiptKing",
+  "short_name": "ReceiptKing",
+  "description": "Turn receipt scans into purchasing-ready PDF, Excel, and CSV records.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f2",
+  "theme_color": "#163f36",
+  "icons": [
+    {
+      "src": "assets/brand/icons/hackberry/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/brand/icons/hackberry/icon-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp"
+    }
+  ]
+}

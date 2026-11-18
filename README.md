@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./favicon.svg" width="112" height="112" alt="ReceiptKing Emperor Tamarin logo" />
+  <img src="./assets/brand/jungle/hackberry.webp" width="148" height="148" alt="ReceiptKing HackBerry Emperor Tamarin icon" />
 
   # ReceiptKing
 
@@ -11,7 +11,7 @@
   [![Browse Source](https://img.shields.io/badge/Browse_Source-225B4E?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Sukonik/receiptking)
   [![Deployment](https://img.shields.io/github/actions/workflow/status/Sukonik/receiptking/pages.yml?branch=main&style=for-the-badge&label=Pages)](https://github.com/Sukonik/receiptking/actions/workflows/pages.yml)
 
-  [![Version](https://img.shields.io/badge/version-1.0-D7F06B?style=flat-square&labelColor=163F36)](#site-versions)
+  [![Version](https://img.shields.io/badge/version-1.2-D7F06B?style=flat-square&labelColor=163F36)](#site-versions)
   [![License](https://img.shields.io/github/license/Sukonik/receiptking?style=flat-square&color=D7F06B&labelColor=163F36)](./LICENSE)
   [![Static App](https://img.shields.io/badge/static-browser_app-F6F7F2?style=flat-square&labelColor=163F36)](#privacy-and-data-handling)
 </div>
@@ -20,7 +20,7 @@
 
 ## Quick links
 
-[Live website](https://sukonik.github.io/receiptking/) · [Version history](#site-versions) · [Features](#version-1-features) · [Workflow](#how-it-works) · [Emperor UI](#emperor-ui-system) · [Run locally](#run-locally) · [Roadmap](#roadmap)
+[Live website](https://sukonik.github.io/receiptking/) · [Version history](#site-versions) · [Features](#version-12-features) · [Workflow](#how-it-works) · [Emperor UI](#emperor-ui-system) · [Brand collection](#receiptking-jungle-collection) · [Run locally](#run-locally) · [Roadmap](#roadmap)
 
 ## What ReceiptKing does
 
@@ -39,9 +39,9 @@ The project begins with a deliberately narrow municipal workflow. It follows the
 
 ReceiptKing addresses those hurdles with a three-step flow: report details, receipt intake, and reviewed export.
 
-## Version 1 features
+## Version 1.2 features
 
-| Area | Included in v1 |
+| Area | Included in v1.2 |
 | --- | --- |
 | Receipt intake | PDF, PNG, JPG, JPEG, and WebP |
 | OCR | Browser-based Tesseract.js text recognition |
@@ -54,6 +54,7 @@ ReceiptKing addresses those hurdles with a three-step flow: report details, rece
 | Exports | Direct PDF, Excel `.xlsx`, CSV, and browser print |
 | Drafts | Automatic browser-local draft storage |
 | Deployment | Static GitHub Pages website |
+| Brand system | Clerk primary mark, eight live color themes, light/dark/auto mode, and six selectable Jungle icons |
 
 ## How it works
 
@@ -137,13 +138,42 @@ ReceiptKing introduces the **Emperor UI system**, named for its Emperor Tamarin 
 
 The interface uses Ant Design components with Tailwind-inspired responsive composition, spacing, and utility patterns.
 
+## ReceiptKing Jungle Collection
+
+The Jungle Collection brings the new design set into the product without allowing branding to compete with the purchasing workflow. The clean full-body Clerk remains the primary logo. A compact WYWO-style Appearance menu in the header provides eight color themes, light/dark/auto mode, and six botanical app icons.
+
+<div align="center">
+  <img src="./assets/brand/logos/receiptking-clerk-forest-green.webp" width="420" alt="ReceiptKing forest-green Clerk logo" />
+</div>
+
+### Logo family
+
+| Asset | Intended use |
+| --- | --- |
+| Forest Green Clerk | Default product logo and interface artwork |
+| Black Clerk | Monochrome print and high-contrast documents |
+| Greyscale Clerk | Neutral office documents and low-color printing |
+| Lime Green Clerk | Promotional accents and bright-background treatments |
+
+### Botanical app icons
+
+| HackBerry | Sapote | GroundCherry | Fig | TreeGrape | IceCreamBean |
+| --- | --- | --- | --- | --- | --- |
+| <img src="./assets/brand/jungle/hackberry.webp" width="96" alt="HackBerry icon" /> | <img src="./assets/brand/jungle/sapote.webp" width="96" alt="Sapote icon" /> | <img src="./assets/brand/jungle/groundcherry.webp" width="96" alt="GroundCherry icon" /> | <img src="./assets/brand/jungle/fig.webp" width="96" alt="Fig icon" /> | <img src="./assets/brand/jungle/treegrape.webp" width="96" alt="TreeGrape icon" /> | <img src="./assets/brand/jungle/icecreambean.webp" width="96" alt="IceCreamBean icon" /> |
+| **Default** | Alternate | Alternate | Alternate | Alternate | Alternate |
+
+HackBerry is the default. Choosing one of the five alternates updates the header icon, hero seal, browser favicon, and Apple touch icon. Theme, mode, and icon preferences are saved separately in browser-local storage.
+
+The live theme tokens and behavior are documented in [Jungle Themes](./docs/brand/JUNGLE-THEMES.md). The full asset usage notes are in the [Brand Pack guide](./docs/brand/BRAND-PACK.md).
+
 ## Site versions
 
 The newest public version always appears first.
 
 | Version | Status | Website | Source snapshot | Published |
 | --- | --- | --- | --- | --- |
-| **v1.1** | Current | [Open v1.1](https://sukonik.github.io/receiptking/) | [`main`](https://github.com/Sukonik/receiptking/tree/main) | November 18, 2026 |
+| **v1.2** | Current | [Open v1.2](https://sukonik.github.io/receiptking/) | [`main`](https://github.com/Sukonik/receiptking/tree/main) | November 18, 2026 |
+| **v1.1** | Historical source | Replaced by v1.2 | [`bc3508b`](https://github.com/Sukonik/receiptking/commit/bc3508be5d2b35cb1ce97521fbd9f2eae78c541a) | November 18, 2026 |
 | **v1.0** | Historical source | Replaced by v1.1 | [`d128fc2`](https://github.com/Sukonik/receiptking/commit/d128fc28faa4f07cad1498cdff8d4da4e26fc7d0) | November 18, 2026 |
 
 Permanent project links:
@@ -159,7 +189,7 @@ Future public versions should be added to the top of the table with a release ta
 
 - React 18
 - Ant Design 5
-- Tailwind CSS browser utilities
+- Precompiled Emperor UI CSS with Tailwind-inspired responsive composition
 - Tesseract.js OCR
 - PDF.js
 - SheetJS
@@ -173,9 +203,15 @@ Future public versions should be added to the top of the table with a release ta
 ```text
 receiptking/
 ├── .github/workflows/pages.yml  # GitHub Pages deployment
+├── assets/brand/
+│   ├── icons/hackberry/         # Default favicon and install icons
+│   ├── jungle/                  # Six optimized botanical app previews
+│   └── logos/                   # Four optimized transparent Clerk variants
+├── docs/brand/                  # Brand usage and live theme tokens
 ├── app.jsx                      # Receipt workflow and export logic
-├── favicon.svg                  # Emperor Tamarin brand mark
+├── app.js                       # Precompiled production script
 ├── index.html                   # Application entry point and browser libraries
+├── site.webmanifest             # Installable app metadata
 ├── styles.css                   # Emperor UI responsive styling
 ├── package.json                 # Local preview command
 ├── LICENSE                      # Mozilla Public License 2.0
@@ -199,6 +235,12 @@ For the included Vite preview:
 ```bash
 npm install
 npm run dev
+```
+
+After editing `app.jsx`, rebuild the production script before publishing:
+
+```bash
+npm run build
 ```
 
 ## Deployment

@@ -1,13 +1,48 @@
 const { useEffect, useMemo, useState } = React;
 const {
-  Button, ConfigProvider, DatePicker, Input, message, Progress, Space, Tag, Upload
+  Button, ConfigProvider, DatePicker, Input, message, Progress, Tag, Upload
 } = antd;
 const {
+  CheckOutlined, CloseOutlined,
   CloudUploadOutlined, DeleteOutlined, FileExcelOutlined, FilePdfOutlined, FileTextOutlined,
-  LockOutlined, PlusOutlined, PrinterOutlined, SafetyCertificateOutlined
+  LockOutlined, PlusOutlined, PrinterOutlined, SafetyCertificateOutlined, SettingOutlined
 } = icons;
 
 const STORAGE_KEY = "receiptking-v1";
+const UI_STORAGE_KEY = "receiptking-ui";
+
+const emperorThemes = [
+  { id: "emperor-tamarin", name: "Emperor Tamarin", primary: "#163F36", accent: "#D7F06B", bg: "#F6F7F2", surface: "#FFFFFF", text: "#18332B", darkBg: "#0D1F1A", darkSurface: "#172F28", darkText: "#EAF5ED" },
+  { id: "squirrel-monkey", name: "Squirrel Monkey", primary: "#A95227", accent: "#F1B566", bg: "#FFF8F0", surface: "#FFFFFF", text: "#392414", darkBg: "#21160F", darkSurface: "#332216", darkText: "#F8E5C6" },
+  { id: "capuchin-monkey", name: "Capuchin Monkey", primary: "#69503A", accent: "#D8AD79", bg: "#FAF5EC", surface: "#FFFFFF", text: "#30281F", darkBg: "#1E1A16", darkSurface: "#302820", darkText: "#F3E4CE" },
+  { id: "three-toed-sloth", name: "Three-Toed Sloth", primary: "#506D58", accent: "#A9C39B", bg: "#F4F8F1", surface: "#FFFFFF", text: "#26372B", darkBg: "#18251D", darkSurface: "#25362B", darkText: "#E8F3E2" },
+  { id: "toco-toucan", name: "Toco Toucan", primary: "#234F5C", accent: "#EAAE20", bg: "#F2F8F8", surface: "#FFFFFF", text: "#18363E", darkBg: "#101F25", darkSurface: "#1C3138", darkText: "#F9E8A5" },
+  { id: "green-anaconda", name: "Green Anaconda", primary: "#176F61", accent: "#A4CC74", bg: "#F1F8F3", surface: "#FFFFFF", text: "#143C34", darkBg: "#0C2521", darkSurface: "#163A32", darkText: "#E2F2D6" },
+  { id: "jaguar", name: "Jaguar", primary: "#86501E", accent: "#DDA94F", bg: "#FCF7EF", surface: "#FFFFFF", text: "#392711", darkBg: "#211B12", darkSurface: "#342719", darkText: "#F8E9CA" },
+  { id: "capybara", name: "Capybara", primary: "#795B48", accent: "#C7A27C", bg: "#FAF5EE", surface: "#FFFFFF", text: "#35291F", darkBg: "#241D18", darkSurface: "#352A22", darkText: "#F2E5D6" }
+];
+
+const jungleIcons = [
+  { name: "HackBerry", note: "Default app icon", file: "hackberry" },
+  { name: "Sapote", note: "Warm woodland", file: "sapote" },
+  { name: "GroundCherry", note: "Golden canopy", file: "groundcherry" },
+  { name: "Fig", note: "Deep fruit grove", file: "fig" },
+  { name: "TreeGrape", note: "Purple rainforest", file: "treegrape" },
+  { name: "IceCreamBean", note: "Fresh green canopy", file: "icecreambean" }
+];
+
+function loadAppearance() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(UI_STORAGE_KEY));
+    return {
+      theme: emperorThemes.some(item => item.id === saved?.theme) ? saved.theme : "emperor-tamarin",
+      mode: ["light", "dark", "auto"].includes(saved?.mode) ? saved.mode : "auto",
+      icon: jungleIcons.some(item => item.file === saved?.icon) ? saved.icon : "hackberry"
+    };
+  } catch (_) {
+    return { theme: "emperor-tamarin", mode: "auto", icon: "hackberry" };
+  }
+}
 
 const today = dayjs();
 const blankRow = () => ({ id: crypto.randomUUID(), budgetCode: "", amount: "", reason: "", source: "Manual entry" });
@@ -68,6 +103,9 @@ async function fileToOcrSource(file) {
 }
 
 function App() {
+  const [appearance, setAppearance] = useState(loadAppearance);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches || false);
   const [form, setForm] = useState({
     department: "Corporation Counsel",
     month: today.format("MMMM YYYY"),
@@ -77,6 +115,48 @@ function App() {
   });
   const [rows, setRows] = useState([blankRow()]);
   const [scan, setScan] = useState({ active: false, progress: 0, file: "", status: "Ready" });
+
+  const activeTheme = emperorThemes.find(item => item.id === appearance.theme) || emperorThemes[0];
+  const activeIcon = jungleIcons.find(item => item.file === appearance.icon) || jungleIcons[0];
+  const isDark = appearance.mode === "dark" || (appearance.mode === "auto" && systemDark);
+
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return undefined;
+    const onChange = event => setSystemDark(event.matches);
+    media.addEventListener?.("change", onChange);
+    return () => media.removeEventListener?.("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const background = isDark ? activeTheme.darkBg : activeTheme.bg;
+    const surface = isDark ? activeTheme.darkSurface : activeTheme.surface;
+    const text = isDark ? activeTheme.darkText : activeTheme.text;
+    root.dataset.theme = activeTheme.id;
+    root.dataset.mode = isDark ? "dark" : "light";
+    root.style.setProperty("--ink", text);
+    root.style.setProperty("--forest", activeTheme.primary);
+    root.style.setProperty("--forest-2", activeTheme.primary);
+    root.style.setProperty("--lime", activeTheme.accent);
+    root.style.setProperty("--cream", background);
+    root.style.setProperty("--paper", surface);
+    root.style.setProperty("--muted", isDark ? "#AFC0BA" : "#6D7873");
+    root.style.setProperty("--line", isDark ? "rgba(255,255,255,.16)" : "rgba(25,53,46,.13)");
+    localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(appearance));
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? activeTheme.darkBg : activeTheme.primary);
+
+    const iconBase = `assets/brand/icons/${activeIcon.file}/`;
+    document.getElementById("favicon32")?.setAttribute("href", `${iconBase}favicon-32.png`);
+    document.getElementById("appleIcon")?.setAttribute("href", `${iconBase}apple-touch-icon.png`);
+  }, [appearance, activeTheme, activeIcon, isDark]);
+
+  useEffect(() => {
+    if (!appearanceOpen) return undefined;
+    const closeOnEscape = event => { if (event.key === "Escape") setAppearanceOpen(false); };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [appearanceOpen]);
 
   useEffect(() => {
     try {
@@ -263,18 +343,80 @@ function App() {
   }
 
   return (
-    <ConfigProvider theme={{ token: {
-      colorPrimary: "#163f36", colorInfo: "#225b4e", colorSuccess: "#4f7a55",
-      borderRadius: 10, fontFamily: '"DM Sans", system-ui, sans-serif', controlHeight: 42
-    } }}>
+    <ConfigProvider theme={{
+      algorithm: isDark ? antd.theme.darkAlgorithm : antd.theme.defaultAlgorithm,
+      token: {
+        colorPrimary: activeTheme.primary,
+        colorInfo: activeTheme.primary,
+        colorSuccess: activeTheme.primary,
+        colorBgContainer: isDark ? activeTheme.darkSurface : activeTheme.surface,
+        colorText: isDark ? activeTheme.darkText : activeTheme.text,
+        colorBorder: isDark ? "rgba(255,255,255,.18)" : "rgba(25,53,46,.18)",
+        borderRadius: 10,
+        fontFamily: '"DM Sans", system-ui, sans-serif',
+        controlHeight: 42
+      }
+    }}>
       <div className="app-shell">
         <header className="topbar">
           <div className="brand">
-            <img src="favicon.svg" alt="ReceiptKing Emperor Tamarin mark" />
+            <img src={`assets/brand/jungle/${activeIcon.file}.webp`} alt={`ReceiptKing ${activeIcon.name} app icon`} />
             <div><div className="brand-name">ReceiptKing</div><div className="brand-note">Emperor UI · Purchasing organized</div></div>
           </div>
-          <div className="privacy-pill"><LockOutlined /><span>Local browser processing</span></div>
+          <div className="topbar-actions">
+            <div className="privacy-pill"><LockOutlined /><span>Local browser processing</span></div>
+            <button className="appearance-trigger" type="button" aria-expanded={appearanceOpen} aria-controls="appearance-panel" onClick={() => setAppearanceOpen(open => !open)}>
+              <span className="theme-dot" style={{ background: activeTheme.primary }} aria-hidden="true" />
+              <span>{activeTheme.name}</span>
+              <SettingOutlined />
+            </button>
+          </div>
         </header>
+
+        {appearanceOpen && <>
+          <button className="appearance-scrim" type="button" aria-label="Close appearance menu" onClick={() => setAppearanceOpen(false)} />
+          <section className="appearance-panel" id="appearance-panel" role="dialog" aria-modal="true" aria-labelledby="appearance-title">
+            <div className="appearance-head">
+              <div><span className="panel-kicker">Emperor UI system</span><h2 id="appearance-title">Appearance</h2></div>
+              <button className="icon-close" type="button" aria-label="Close appearance menu" onClick={() => setAppearanceOpen(false)}><CloseOutlined /></button>
+            </div>
+
+            <div className="appearance-group">
+              <h3>Mode</h3>
+              <div className="mode-switch" role="group" aria-label="Color mode">
+                {[{ id: "light", label: "☀️ Light" }, { id: "dark", label: "🌙 Dark" }, { id: "auto", label: "Auto" }].map(mode => (
+                  <button key={mode.id} type="button" aria-pressed={appearance.mode === mode.id} onClick={() => setAppearance(current => ({ ...current, mode: mode.id }))}>{mode.label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="appearance-group">
+              <h3>Color theme</h3>
+              <div className="theme-options" role="group" aria-label="Emperor UI color theme">
+                {emperorThemes.map(item => (
+                  <button key={item.id} type="button" className="theme-option" aria-pressed={appearance.theme === item.id} onClick={() => setAppearance(current => ({ ...current, theme: item.id }))}>
+                    <span className="theme-swatch" style={{ "--swatch-primary": item.primary, "--swatch-accent": item.accent }} aria-hidden="true" />
+                    <span>{item.name}</span>
+                    {appearance.theme === item.id && <CheckOutlined aria-hidden="true" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="appearance-group">
+              <h3>Jungle app icon <em>saved separately</em></h3>
+              <div className="icon-options" role="group" aria-label="Jungle app icon">
+                {jungleIcons.map(item => (
+                  <button key={item.file} type="button" className="icon-option" aria-pressed={appearance.icon === item.file} onClick={() => setAppearance(current => ({ ...current, icon: item.file }))}>
+                    <img src={`assets/brand/jungle/${item.file}.webp`} alt="" />
+                    <span>{item.name}</span>
+                    {item.file === "hackberry" && <small>Default</small>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        </>}
 
         <section className="hero">
           <div>
@@ -288,10 +430,12 @@ function App() {
             </div>
           </div>
           <div className="monkey-card" aria-label="Emperor Tamarin brand panel">
-            <div className="monkey-scene"><img src="favicon.svg" alt="Emperor Tamarin mascot" /></div>
+            <div className="monkey-scene">
+              <img src="assets/brand/logos/receiptking-clerk-forest-green.webp" alt="ReceiptKing Clerk holding a receipt" />
+            </div>
             <div className="monkey-caption">
               <div><strong>The little king of receipts.</strong><span>Fast intake. Human review. Clean handoff.</span></div>
-              <div className="crown-number">01</div>
+              <img className="jungle-seal" src={`assets/brand/jungle/${activeIcon.file}.webp`} alt={`${activeIcon.name} jungle seal`} />
             </div>
           </div>
         </section>
@@ -299,7 +443,7 @@ function App() {
         <main className="workspace">
           <div className="section-head">
             <div><h2>City credit card expense form</h2><p>Based on the current Long Beach purchasing template.</p></div>
-            <Tag color="green">Version 1</Tag>
+            <Tag color="green">Version 1.2</Tag>
           </div>
 
           <div className="workspace-grid">
@@ -363,8 +507,9 @@ function App() {
               </div>
             </section>
           </div>
+
         </main>
-        <footer className="footer">ReceiptKing v1 · OCR assists with data entry, but staff remain responsible for reviewing purchasing records.</footer>
+        <footer className="footer">ReceiptKing v1.2 · OCR assists with data entry, but staff remain responsible for reviewing purchasing records.</footer>
       </div>
     </ConfigProvider>
   );

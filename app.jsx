@@ -1,12 +1,13 @@
-const { useCallback, useEffect, useMemo, useRef, useState } = React;
-const {
-  Button, Checkbox, ConfigProvider, DatePicker, Input, Modal, message, Progress
-} = antd;
-const {
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { Button, Checkbox, ConfigProvider, DatePicker, Input, message, Progress, theme as antTheme } from "antd";
+import {
   CameraOutlined, CheckOutlined, CloseOutlined, DeleteOutlined, FileExcelOutlined,
   FilePdfOutlined, FileTextOutlined, FolderOpenOutlined, LockOutlined, PlusOutlined,
   PrinterOutlined, SafetyCertificateOutlined, SettingOutlined, WarningOutlined
-} = icons;
+} from "@ant-design/icons";
+import dayjs from "dayjs";
 
 const APP_VERSION = "1.3";
 // The header and hero are static HTML (see index.html) so the first paint never waits for React. React owns the header's controls.
@@ -327,6 +328,8 @@ function App() {
   const [attachImages, setAttachImages] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [viewer, setViewer] = useState(null);
+  const viewerRef = useRef(null);
+  useEffect(() => { if (viewer && viewerRef.current && !viewerRef.current.open) viewerRef.current.showModal(); }, [viewer]);
 
   const panelRef = useRef(null);
   const triggerRef = useRef(null);
@@ -728,7 +731,7 @@ function App() {
 
   return (
     <ConfigProvider theme={{
-      algorithm: isDark ? antd.theme.darkAlgorithm : antd.theme.defaultAlgorithm,
+      algorithm: isDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
       token: {
         colorPrimary: activeTheme.primary,
         colorInfo: activeTheme.primary,
@@ -744,7 +747,7 @@ function App() {
     }}>
       <div className="app-shell">
         <a className="skip-link" href="#report">Skip to the report form</a>
-        {ReactDOM.createPortal(<header className="topbar">
+        {createPortal(<header className="topbar">
           <div className="brand">
             <img src={`assets/brand/jungle/${activeIcon.file}.webp`} alt={`ReceiptKing ${activeIcon.name} app icon`} width="48" height="48" />
             <div className="brand-name">ReceiptKing</div>
@@ -936,12 +939,15 @@ function App() {
 
         <footer className="footer"><strong>ReceiptKing v{APP_VERSION}</strong><span>Emperor UI system</span><span>OCR assists with data entry. Staff remain responsible for reviewing purchasing records.</span></footer>
 
-        <Modal open={Boolean(viewer)} title={viewer?.name} footer={null} onCancel={() => setViewer(null)} centered width={760}>
-          {viewer && <img className="viewer-image" src={viewer.url} alt={`Receipt image ${viewer.name}`} />}
-        </Modal>
+        <dialog ref={viewerRef} className="viewer" aria-label={viewer ? `Receipt image ${viewer.name}` : "Receipt image"} onClose={() => setViewer(null)} onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
+          {viewer && <>
+            <div className="viewer-head"><strong>{viewer.name}</strong><button className="icon-close" type="button" aria-label="Close receipt image" onClick={() => viewerRef.current?.close()}><CloseOutlined /></button></div>
+            <img className="viewer-image" src={viewer.url} alt={`Receipt image ${viewer.name}`} />
+          </>}
+        </dialog>
       </div>
     </ConfigProvider>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(<App />);

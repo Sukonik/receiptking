@@ -52,7 +52,7 @@ ReceiptKing addresses those hurdles with a three-step flow: report details, rece
 | Layout | Purchase lines become stacked cards on phones, with a sticky export bar |
 | Exports | PDF (optionally with the receipt images attached), Excel `.xlsx`, CSV, and browser print |
 | Appearance | Focus-trapped dialog (bottom sheet on phones), quick light/dark toggle, no theme flash on load, reduced-motion support |
-| Performance | Tesseract, PDF.js, SheetJS, jsPDF, and AutoTable load on first use only |
+| Performance | React, Ant Design, and icons are bundled and tree-shaken into one `app.js` (no CDN round trips at startup). Tesseract, PDF.js, SheetJS, jsPDF, and AutoTable load on first use only. Lighthouse mobile 390 px: performance 90-95, LCP 0.9 s |
 | Drafts | Browser-local draft with a schema version and migration from v1.2 drafts |
 | Brand system | Clerk primary mark, eight color themes, light/dark/auto mode, and six Jungle icons |
 

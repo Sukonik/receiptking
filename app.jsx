@@ -149,11 +149,15 @@ function extractReceiptFields(text, filename) {
   const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   const totalCandidates = [];
   lines.forEach((line, index) => {
-    const matches = line.match(/(?:\$\s*)?(\d{1,5}(?:,\d{3})*\.\d{2})/g) || [];
+    // Letter-spaced or split words ("G RAND TOTAL") still match once spaces are removed.
+    const squashed = line.replace(/[^a-z]/gi, "").toLowerCase();
+    const matches = line.match(/(?:\$\s*)?(\d{1,5}(?:,\d{3})*\s?\.\s?\d{2})(?!\d)/g) || [];
     matches.forEach(raw => {
-      const value = normalizeMoney(raw);
-      const score = (/grand\s*total|amount\s*due|balance\s*due|total/i.test(line) ? 10 : 0)
-        - (/subtotal|sub-total|tax|change|saving|tip|cash|tend/i.test(line) ? 7 : 0)
+      const value = normalizeMoney(raw.replace(/\s/g, ""));
+      if (!(value > 0)) return;
+      const score = (/grandtotal|amountdue|balancedue|totaldue|invoicetotal|ordertotal|total/.test(squashed) ? 10 : 0)
+        + (/grandtotal|amountpaid/.test(squashed) ? 2 : 0)
+        - (/subtotal|tax|change|saving|tip|cash|tender|roomservices|assessment/.test(squashed) ? 7 : 0)
         + value / 100000
         + index / 10000;
       totalCandidates.push({ value, score });
@@ -161,14 +165,19 @@ function extractReceiptFields(text, filename) {
   });
   totalCandidates.sort((a, b) => b.score - a.score || b.value - a.value);
 
-  const vendor = lines.find(line =>
-    line.length >= 3 && line.length <= 48 && /[a-z]{3}/i.test(line) &&
-    !/receipt|invoice|date|time|cashier|order|transaction|welcome|thank|tel|phone|www\.|http/i.test(line)
-  ) || filename.replace(/\.[^.]+$/, "");
+  // A stated purpose beats a guessed vendor.
+  const purposeLine = lines.find(line => /purpose\s*[:\-]?\s*\S/i.test(line));
+  const purpose = purposeLine ? purposeLine.replace(/^.*?(business\s+)?purpose\s*[:\-]?\s*/i, "").replace(/\s*[-–]\s*sample\s*$/i, "").trim() : "";
+
+  const skip = /receipt|invoice|date|time|cashier|order|transaction|welcome|thank|tel\b|phone|www\.|http|folio|guest|issued|sample|test|fictional|room|arrival|departure|page|statement|account|card|visa|authorization/i;
+  const eligible = lines.filter(line => line.length >= 3 && line.length <= 48 && /[a-z]{3}/i.test(line) && !skip.test(line));
+  const businessLine = eligible.find(line => /\b(hotel|inn|cafe|caf\u00e9|market|store|inc|llc|co|corp|restaurant|supply|supplies|hardware|pharmacy|depot|shop|grill|airlines?|taxi|parking|center)\b/i.test(line));
+  const vendor = (businessLine || eligible[0] || filename.replace(/\.[^.]+$/, "")).replace(/\s+/g, " ");
+  const titled = vendor === vendor.toUpperCase() ? vendor.toLowerCase().replace(/\b[a-z]/g, letter => letter.toUpperCase()) : vendor;
 
   return {
-    amount: totalCandidates[0]?.value ? totalCandidates[0].value.toFixed(2) : "",
-    reason: vendor ? `Purchase from ${vendor.replace(/\s+/g, " ")}` : ""
+    amount: totalCandidates[0] ? totalCandidates[0].value.toFixed(2) : "",
+    reason: purpose.length >= 6 ? purpose.charAt(0).toUpperCase() + purpose.slice(1) : `Purchase from ${titled}`
   };
 }
 
@@ -262,7 +271,7 @@ async function prepareReceipt(file) {
   const height = bitmap.naturalHeight || bitmap.height;
   if (!width || !height) throw new Error("This image appears to be empty.");
   const longest = Math.max(width, height);
-  const scale = longest > 2400 ? 2400 / longest : longest < 1400 ? Math.min(2, 1400 / longest) : 1;
+  const scale = longest > 2600 ? 2600 / longest : longest < 2400 ? Math.min(3, 2400 / longest) : 1;
   const canvas = drawToCanvas(bitmap, Math.round(width * scale), Math.round(height * scale), { filter: "grayscale(1) contrast(1.2)" });
   const full = makeImage(bitmap, width, height, 2200, 0.9);
   const thumb = makeImage(bitmap, width, height, 220, 0.72);
@@ -359,6 +368,54 @@ function makeZip(files) {
   end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
   end.setUint32(12, directorySize, true); end.setUint32(16, offset, true);
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
+}
+
+/* Remove long thin rules (table borders, underlines, strike-through bars) that cut through text and confuse OCR. */
+function removeRules(source) {
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(source, 0, 0);
+  const { width: W, height: H } = canvas;
+  const image = ctx.getImageData(0, 0, W, H);
+  const px = image.data;
+  const dark = (x, y) => px[(y * W + x) * 4] < 140;
+  const clear = (x, y) => { const i = (y * W + x) * 4; px[i] = px[i + 1] = px[i + 2] = 255; };
+  const thin = Math.max(3, Math.round(Math.max(W, H) / 400));
+  const minRunX = Math.round(W * 0.12);
+  const minRunY = Math.round(H * 0.08);
+  for (let y = thin + 1; y < H - thin - 1; y += 1) {
+    let x = 0;
+    while (x < W) {
+      if (!dark(x, y)) { x += 1; continue; }
+      let end = x;
+      while (end < W && dark(end, y)) end += 1;
+      if (end - x >= minRunX) {
+        const mid = (x + end) >> 1;
+        const q1 = x + ((end - x) >> 2);
+        const q3 = x + (((end - x) * 3) >> 2);
+        const isThin = [mid, q1, q3].every(px0 => !dark(px0, y - thin - 1) || !dark(px0, y + thin + 1));
+        if (isThin) for (let cx = x; cx < end; cx += 1) for (let dy = -1; dy <= 1; dy += 1) if (y + dy >= 0 && y + dy < H) clear(cx, y + dy);
+      }
+      x = end;
+    }
+  }
+  for (let x = thin + 1; x < W - thin - 1; x += 1) {
+    let y = 0;
+    while (y < H) {
+      if (!dark(x, y)) { y += 1; continue; }
+      let end = y;
+      while (end < H && dark(x, end)) end += 1;
+      if (end - y >= minRunY) {
+        const mid = (y + end) >> 1;
+        if (!dark(x - thin - 1, mid) || !dark(x + thin + 1, mid)) for (let cy = y; cy < end; cy += 1) for (let dx = -1; dx <= 1; dx += 1) if (x + dx >= 0 && x + dx < W) clear(x + dx, cy);
+      }
+      y = end;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  return canvas;
 }
 
 function makeCancelToken() {
@@ -594,16 +651,25 @@ function App() {
               }));
               token.worker = worker;
             }
-            let result = await token.guard(worker.recognize(prepared.canvas));
+            const ocrCanvas = prepared.canvas;
+            let result = await token.guard(worker.recognize(ocrCanvas));
+            text = result.data.text;
             if (result.data.confidence < 45) {
               setStatus({ status: "Trying rotated views", progress: 50 });
               for (const rotate of [90, 270]) {
-                const turned = drawToCanvas(prepared.canvas, prepared.canvas.width, prepared.canvas.height, { rotate });
+                const turned = drawToCanvas(ocrCanvas, ocrCanvas.width, ocrCanvas.height, { rotate });
                 const attempt = await token.guard(worker.recognize(turned));
-                if (attempt.data.confidence > result.data.confidence + 5) result = attempt;
+                if (attempt.data.confidence > result.data.confidence + 5) { result = attempt; text = attempt.data.text; }
               }
             }
-            text = result.data.text;
+            if (!extractReceiptFields(text, file.name).amount) {
+              // Second pass for stylized or ruled layouts: strip table lines and strike-through bars, then read text blocks independently.
+              setStatus({ status: "Taking a closer look", progress: 60 });
+              await token.guard(worker.setParameters({ tessedit_pageseg_mode: "11" }));
+              const sparse = await token.guard(worker.recognize(removeRules(ocrCanvas)));
+              await token.guard(worker.setParameters({ tessedit_pageseg_mode: "3" }));
+              text = `${text}\n${sparse.data.text}`;
+            }
           } else {
             setStatus({ status: "Read PDF text", progress: 100 });
           }
